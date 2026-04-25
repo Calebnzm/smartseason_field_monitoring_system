@@ -43,19 +43,19 @@ INSTALLED_APPS = [
     # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'corsheaders',
     
     # Local apps
     'users',
     'fields',
 ]
 
-# Sentinel Hub API Credentials (to be replaced with real keys)
-SENTINEL_HUB_CLIENT_ID = None
-SENTINEL_HUB_CLIENT_SECRET = None
+CORS_ALLOW_ALL_ORIGINS = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',

@@ -14,7 +14,7 @@ class Field(models.Model):
 
     STATUS_CHOICES = [
         ('ACTIVE', 'Active'),
-        ('AT_RISK', 'At Risk'),
+        ('WATER_STRESSED', 'Water Stressed'),
         ('COMPLETED', 'Completed'),
         ('UNKNOWN', 'Unknown'),
     ]
@@ -67,9 +67,6 @@ class FieldSatelliteData(models.Model):
     field = models.OneToOneField(Field, on_delete=models.CASCADE, related_name='satellite_data')
     ndvi = models.FloatField(null=True, blank=True)
     ndwi = models.FloatField(null=True, blank=True)
-    ndbi = models.FloatField(null=True, blank=True)
-    lai = models.FloatField(null=True, blank=True)
-    biomass = models.FloatField(null=True, blank=True)
     fetched_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

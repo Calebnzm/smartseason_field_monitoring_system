@@ -5,7 +5,7 @@ from users.serializers import AgentSerializer
 class FieldSatelliteDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = FieldSatelliteData
-        fields = ['ndvi', 'ndwi', 'ndbi', 'lai', 'biomass', 'fetched_at']
+        fields = ['ndvi', 'ndwi', 'fetched_at']
 
 
 class FieldUpdateSerializer(serializers.ModelSerializer):
