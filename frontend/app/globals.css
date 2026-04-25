@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #2d5016;
+  --color-secondary: #7cb342;
+  --color-accent: #f57c00;
+  --color-success: #388e3c;
+  --color-warning: #f57f17;
+  --color-danger: #d32f2f;
+  --color-background: #fafaf9;
+  --color-surface: #ffffff;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #666666;
+  --color-border: #e0e0e0;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-background);
+  }
+
+  body {
+    color: var(--color-text);
+    background-color: var(--color-background);
+  }
+}
+
+@layer components {
+  .card {
+    background-color: var(--color-surface);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--color-border);
+    padding: 1.5rem;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: opacity 0.2s;
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+
+  .btn-secondary {
+    background-color: var(--color-secondary);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: opacity 0.2s;
+  }
+
+  .btn-secondary:hover {
+    opacity: 0.9;
+  }
+
+  .btn-outline {
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
+  }
+
+  .btn-outline:hover {
+    background-color: var(--color-background);
+  }
+
+  .status-active {
+    background-color: #dcfce7;
+    color: #15803d;
+    padding: 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .status-at-risk {
+    background-color: #fef3c7;
+    color: #b45309;
+    padding: 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .status-completed {
+    background-color: #f3f4f6;
+    color: #4b5563;
+    padding: 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .status-unknown {
+    background-color: #dbeafe;
+    color: #1e40af;
+    padding: 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .stage-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 0.25rem;
+    background-color: #f1f5f9;
+    color: #475569;
+  }
+}
