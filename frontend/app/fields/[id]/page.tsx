@@ -1,232 +1,297 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { useRouter, useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import Header from '@/components/Header';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import { api } from '@/lib/api';
+import { api, Field, FieldUpdate } from '@/lib/api';
+import { Button } from '@/components/Button';
+import { Alert } from '@/components/Alert';
 import Link from 'next/link';
+import { ArrowLeft, MapPin, Leaf, User, Zap, Edit, Trash2 } from 'lucide-react';
 
-interface Field {
-  id: number;
-  name: string;
-  crop_type: string;
-  stage: string;
-  status: string;
-  planting_date: string;
-  latitude: number;
-  longitude: number;
-  assigned_agent?: { id: number; username: string } | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface FieldUpdate {
-  id: number;
-  stage?: string;
-  note: string;
-  author: { id: number; username: string };
-  created_at: string;
-}
-
-interface SatelliteData {
-  ndvi?: number;
-  ndwi?: number;
-  ndbi?: number;
-  lai?: number;
-  biomass?: number;
-  fetched_at: string;
-}
-
-const fetcher = async (url: string) => {
-  const response = await api.get(url);
-  return response.data;
-};
+const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function FieldDetailPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
-  const fieldId = params?.id;
-  const [isAuthed, setIsAuthed] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const fieldId = (params?.id || '') as string;
+
+  const { data: field, error: fieldError, isLoading: fieldLoading } = useSWR<Field>(
+    fieldId ? `/fields/${fieldId}/` : null,
+    fetcher
+  );
+
+  const { data: updates, error: updatesError, isLoading: updatesLoading } = useSWR<FieldUpdate[]>(
+    fieldId ? `/fields/${fieldId}/updates/` : null,
+    fetcher
+  );
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
       router.push('/login');
-    } else {
-      setIsAuthed(true);
     }
-  }, [router]);
+  }, [user, authLoading, router]);
 
-  const { data: field, isLoading: fieldLoading, error: fieldError } = useSWR<Field>(
-    isAuthed && fieldId ? `/fields/${fieldId}/` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  );
+  const handleDelete = async () => {
+    if (!fieldId) return;
 
-  const { data: updates } = useSWR<FieldUpdate[]>(
-    isAuthed && fieldId ? `/fields/${fieldId}/updates/` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  );
+    setIsDeleting(true);
+    try {
+      await api.delete(`/fields/${fieldId}/`);
+      router.push('/fields');
+    } catch (err) {
+      setDeleteConfirm(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
-  if (!isAuthed) return <LoadingSpinner />;
-  if (fieldLoading) return <LoadingSpinner />;
-  if (fieldError || !field)
+  const calculateDaysSincePlanting = () => {
+    if (!field) return 0;
+    const plantingDate = new Date(field.planting_date);
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - plantingDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  if (!mounted || authLoading) {
     return (
-      <div className="min-h-screen bg-[var(--color-background)]">
-        <Header />
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <p className="text-red-600">Failed to load field</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
       </div>
     );
+  }
 
-  const getStatusClass = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'status-active';
-      case 'AT_RISK':
-        return 'status-at-risk';
-      case 'COMPLETED':
-        return 'status-completed';
-      default:
-        return 'status-unknown';
-    }
-  };
+  if (!user) {
+    return null;
+  }
 
-  const getStageColor = (stage: string) => {
-    const colors: { [key: string]: string } = {
-      PLANTED: 'bg-blue-100 text-blue-700',
-      GROWING: 'bg-green-100 text-green-700',
-      READY: 'bg-yellow-100 text-yellow-700',
-      HARVESTED: 'bg-gray-100 text-gray-700',
-    };
-    return colors[stage] || 'bg-slate-100 text-slate-700';
-  };
+  if (fieldLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      </div>
+    );
+  }
 
-  const daysSincePlanting = Math.floor(
-    (new Date().getTime() - new Date(field.planting_date).getTime()) / (1000 * 60 * 60 * 24)
-  );
+  if (fieldError || !field) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Link href="/fields" className="flex items-center gap-2 text-[var(--color-primary)] hover:text-[var(--color-primary-dark)] mb-6">
+          <ArrowLeft size={18} />
+          Back to Fields
+        </Link>
+        <Alert type="error" title="Field not found" message="The field you are looking for does not exist or you don't have access to it." />
+      </div>
+    );
+  }
+
+  const daysSincePlanting = calculateDaysSincePlanting();
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)]">
-      <Header />
+    <div className="container mx-auto px-4 py-8">
+      {/* Back Button */}
+      <Link href="/fields" className="flex items-center gap-2 text-[var(--color-primary)] hover:text-[var(--color-primary-dark)] mb-6 transition">
+        <ArrowLeft size={18} />
+        Back to Fields
+      </Link>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <Link href="/fields" className="text-[var(--color-primary)] hover:underline mb-6 block">
-          ← Back to Fields
-        </Link>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-4xl font-bold text-[var(--color-text)]">
+            {field.name}
+          </h1>
+          <p className="text-[var(--color-text-secondary)] mt-2">
+            {field.crop_type} field
+          </p>
+        </div>
 
-        {/* Field Header */}
-        <div className="card mb-8">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-[var(--color-text)]">
-                {field.name}
-              </h1>
-              <p className="text-[var(--color-text-secondary)] mt-1">
-                {field.crop_type}
-              </p>
-            </div>
-            <div className={getStatusClass(field.status)}>
-              {field.status.replace('_', ' ')}
+        {user.role === 'admin' && (
+          <div className="flex gap-2">
+            <Link href={`/fields/${field.id}/edit`}>
+              <Button variant="outline" size="lg" icon={<Edit size={20} />}>
+                Edit
+              </Button>
+            </Link>
+            {deleteConfirm ? (
+              <Button
+                variant="danger"
+                size="lg"
+                onClick={handleDelete}
+                isLoading={isDeleting}
+              >
+                Confirm Delete
+              </Button>
+            ) : (
+              <Button
+                variant="danger"
+                size="lg"
+                icon={<Trash2 size={20} />}
+                onClick={() => setDeleteConfirm(true)}
+              >
+                Delete
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Status Card */}
+      <div className="card mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[var(--color-text-secondary)] text-sm mb-2">
+              Health Status
+            </p>
+            <div className="flex items-center gap-2">
+              <span
+                className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'pending'}`}
+              >
+                {field.health_status.replace('_', ' ').toUpperCase()}
+              </span>
             </div>
           </div>
+          <div className="text-right">
+            <p className="text-[var(--color-text-secondary)] text-sm mb-2">
+              Current Stage
+            </p>
+            <span className="stage-badge text-lg">{field.current_stage}</span>
+          </div>
+        </div>
+      </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Information Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Field Information */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-6 flex items-center gap-2">
+            <Leaf size={20} />
+            Field Information
+          </h2>
+
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-[var(--color-text-secondary)]">Size</span>
+              <span className="font-medium text-[var(--color-text)]">
+                {field.size_hectares} hectares
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--color-text-secondary)]">Crop Type</span>
+              <span className="font-medium text-[var(--color-text)]">
+                {field.crop_type}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--color-text-secondary)]">Days Since Planting</span>
+              <span className="font-medium text-[var(--color-text)]">
+                {daysSincePlanting} days
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--color-text-secondary)]">Created</span>
+              <span className="font-medium text-[var(--color-text)]">
+                {new Date(field.created_at).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Location & Assignment */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-6 flex items-center gap-2">
+            <MapPin size={20} />
+            Location & Assignment
+          </h2>
+
+          <div className="space-y-4">
             <div>
-              <p className="text-xs text-[var(--color-text-secondary)] mb-1">
-                Current Stage
-              </p>
-              <p className={`stage-badge ${getStageColor(field.stage)}`}>
-                {field.stage}
+              <span className="text-[var(--color-text-secondary)] text-sm">Coordinates</span>
+              <p className="font-medium text-[var(--color-text)]">
+                {field.location.latitude}, {field.location.longitude}
               </p>
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-secondary)] mb-1">
-                Planted
-              </p>
+              <span className="text-[var(--color-text-secondary)] text-sm">Planting Date</span>
               <p className="font-medium text-[var(--color-text)]">
                 {new Date(field.planting_date).toLocaleDateString()}
               </p>
             </div>
-            <div>
-              <p className="text-xs text-[var(--color-text-secondary)] mb-1">
-                Days Since Planting
-              </p>
-              <p className="font-medium text-[var(--color-text)]">
-                {daysSincePlanting} days
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-[var(--color-text-secondary)] mb-1">
-                Assigned Agent
-              </p>
-              <p className="font-medium text-[var(--color-text)]">
-                {field.assigned_agent?.username || 'Unassigned'}
-              </p>
-            </div>
+            {field.assigned_agent && (
+              <div className="pt-4 border-t border-[var(--color-border)]">
+                <span className="text-[var(--color-text-secondary)] text-sm flex items-center gap-2 mb-2">
+                  <User size={16} />
+                  Assigned Agent
+                </span>
+                <p className="font-medium text-[var(--color-text)]">
+                  Agent ID: {field.assigned_agent}
+                </p>
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Location */}
-        <div className="card mb-8">
-          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
-            Location
-          </h2>
-          <p className="text-[var(--color-text-secondary)]">
-            Latitude: {field.latitude.toFixed(4)}°
-          </p>
-          <p className="text-[var(--color-text-secondary)]">
-            Longitude: {field.longitude.toFixed(4)}°
-          </p>
-        </div>
+      {/* Updates Timeline */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-[var(--color-text)] mb-6 flex items-center gap-2">
+          <Zap size={20} />
+          Field Updates
+        </h2>
 
-        {/* Updates */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
-            Field Updates
-          </h2>
-
-          {!updates || updates.length === 0 ? (
-            <p className="text-[var(--color-text-secondary)] text-center py-8">
-              No updates yet
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {updates.map((update) => (
-                <div
-                  key={update.id}
-                  className="border-l-4 border-[var(--color-secondary)] pl-4 py-2"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-medium text-[var(--color-text)]">
-                        {update.author.username}
-                      </p>
-                      <p className="text-xs text-[var(--color-text-secondary)]">
-                        {new Date(update.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    {update.stage && (
-                      <span className={`stage-badge ${getStageColor(update.stage)}`}>
+        {updatesLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div>
+          </div>
+        ) : updatesError ? (
+          <Alert type="error" message="Failed to load field updates" />
+        ) : updates && updates.length > 0 ? (
+          <div className="space-y-4">
+            {updates.map((update, index) => (
+              <div
+                key={update.id}
+                className={`pb-4 ${index !== updates.length - 1 ? 'border-b border-[var(--color-border)]' : ''}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center flex-shrink-0 mt-1">
+                    <Zap className="text-white" size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-[var(--color-text)]">
                         {update.stage}
                       </span>
-                    )}
-                  </div>
-                  {update.note && (
-                    <p className="text-[var(--color-text-secondary)]">
-                      {update.note}
+                      <span className="stage-badge">{update.status}</span>
+                    </div>
+                    <p className="text-[var(--color-text-secondary)] text-sm mb-2">
+                      {update.notes}
                     </p>
-                  )}
+                    <span className="text-xs text-[var(--color-text-tertiary)]">
+                      {new Date(update.created_at).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[var(--color-text-secondary)] text-center py-8">
+            No updates yet
+          </p>
+        )}
+      </div>
     </div>
   );
 }

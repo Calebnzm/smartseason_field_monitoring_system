@@ -1,98 +1,129 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useAuth } from '@/lib/auth-context';
+import { FormInput } from '@/components/FormInput';
+import { Button } from '@/components/Button';
+import { Alert } from '@/components/Alert';
+import { loginSchema, type LoginInput } from '@/lib/schemas';
+import { Leaf } from 'lucide-react';
+import { useState } from 'react';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [displayError, setDisplayError] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginInput) => {
+    setIsSubmitting(true);
+    setDisplayError(null);
 
     try {
-      const response = await api.post('/auth/login/', {
-        username,
-        password,
-      });
-
-      const { access, refresh } = response.data;
-      localStorage.setItem('access_token', access);
-      localStorage.setItem('refresh_token', refresh);
-
+      await login(data.email, data.password);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed. Please try again.');
+      setDisplayError(err.response?.data?.detail || 'Login failed. Please try again.');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[var(--color-background)]">
-      <div className="w-full max-w-md card">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[var(--color-primary)]">
-            SmartSeason
-          </h1>
-          <p className="text-[var(--color-text-secondary)] mt-2">
-            Field Monitoring System
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] flex items-center justify-center p-4">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-10 overflow-hidden">
+        <div className="absolute top-10 left-10 w-40 h-40 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
+        <div className="absolute bottom-10 right-10 w-40 h-40 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
+      </div>
+
+      {/* Login Card */}
+      <div className="relative w-full max-w-md z-10">
+        <div className="card shadow-2xl bg-[var(--color-surface)]">
+          {/* Header */}
+          <div className="mb-8 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] rounded-full flex items-center justify-center shadow-lg">
+                <Leaf className="text-white" size={32} />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-[var(--color-text)] mb-2">
+              SmartSeason
+            </h1>
+            <p className="text-[var(--color-text-secondary)] text-sm">
+              Smart Field Monitoring System
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {displayError && (
+              <Alert
+                type="error"
+                title="Login Failed"
+                message={displayError}
+                onClose={() => setDisplayError(null)}
+              />
+            )}
+
+            <FormInput
+              label="Email Address"
+              type="email"
+              placeholder="admin@example.com"
+              required
+              error={errors.email}
+              {...register('email')}
+            />
+
+            <FormInput
+              label="Password"
+              type="password"
+              placeholder="••••••••"
+              required
+              error={errors.password}
+              {...register('password')}
+            />
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              isLoading={isSubmitting}
+              className="w-full"
+            >
+              Sign In to Dashboard
+            </Button>
+          </form>
+
+          {/* Footer */}
+          <div className="mt-8 pt-6 border-t border-[var(--color-border)] text-center">
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Need an account?{' '}
+              <span className="text-[var(--color-primary)] font-semibold">
+                Contact your administrator
+              </span>
+            </p>
+          </div>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            {error}
+        {/* Demo Info Card */}
+        <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg border border-white border-opacity-20 backdrop-blur-sm">
+          <p className="text-white text-xs font-semibold mb-2 opacity-90">Demo Credentials:</p>
+          <div className="space-y-1 text-white text-xs opacity-80">
+            <p>Email: <span className="font-mono">admin@example.com</span></p>
+            <p>Password: <span className="font-mono">admin123</span></p>
           </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              className="w-full px-4 py-2 border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              disabled={loading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              className="w-full px-4 py-2 border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              disabled={loading}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-primary disabled:opacity-50"
-          >
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-[var(--color-text-secondary)] mt-6">
-          Demo credentials available in README
-        </p>
+        </div>
       </div>
     </div>
   );
