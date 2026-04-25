@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   acceptInvite: (token: string, username: string, password: string) => Promise<void>;
 }
@@ -43,11 +43,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (username: string, password: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.post('/auth/login/', { email, password });
+      const res = await api.post('/auth/login/', { username, password });
       localStorage.setItem('access_token', res.data.access);
       if (res.data.refresh) {
         localStorage.setItem('refresh_token', res.data.refresh);

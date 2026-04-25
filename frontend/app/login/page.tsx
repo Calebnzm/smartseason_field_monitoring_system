@@ -30,7 +30,7 @@ export default function LoginPage() {
     setDisplayError(null);
 
     try {
-      await login(data.email, data.password);
+      await login(data.username, data.password);
       router.push('/dashboard');
     } catch (err: any) {
       setDisplayError(err.response?.data?.detail || 'Login failed. Please try again.');
@@ -77,12 +77,12 @@ export default function LoginPage() {
             )}
 
             <FormInput
-              label="Email Address"
-              type="email"
-              placeholder="admin@example.com"
+              label="Username"
+              type="text"
+              placeholder="admin"
               required
-              error={errors.email}
-              {...register('email')}
+              error={errors.username}
+              {...register('username')}
             />
 
             <FormInput
@@ -120,7 +120,7 @@ export default function LoginPage() {
         <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg border border-white border-opacity-20 backdrop-blur-sm">
           <p className="text-white text-xs font-semibold mb-2 opacity-90">Demo Credentials:</p>
           <div className="space-y-1 text-white text-xs opacity-80">
-            <p>Email: <span className="font-mono">admin@example.com</span></p>
+            <p>Username: <span className="font-mono">admin</span></p>
             <p>Password: <span className="font-mono">admin123</span></p>
           </div>
         </div>
