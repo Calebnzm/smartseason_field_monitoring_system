@@ -10,8 +10,10 @@ import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
 import { FormInput } from '@/components/FormInput';
 import { FormSelect } from '@/components/FormSelect';
+import { useError } from '@/lib/useError';
+import { formatValidationErrors } from '@/lib/error-handler';
 import { createFieldSchema, type CreateFieldInput } from '@/lib/schemas';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CheckCircle, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
 
@@ -20,24 +22,26 @@ const fetcher = (url: string) => api.get(url).then((res) => res.data);
 export default function CreateFieldPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const { error: displayError, handleError, clearError } = useError();
   const [mounted, setMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [displayError, setDisplayError] = useState<string | null>(null);
   const [displaySuccess, setDisplaySuccess] = useState(false);
 
   // Fetch agents for assignment
-  const { data: agents } = useSWR(
+  const { data: agents, isLoading: agentsLoading } = useSWR(
     user?.role === 'admin' ? '/users/?role=agent' : null,
-    fetcher
+    fetcher,
+    { revalidateOnReconnect: true }
   );
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid },
     reset,
   } = useForm<CreateFieldInput>({
     resolver: zodResolver(createFieldSchema),
+    mode: 'onChange',
   });
 
   useEffect(() => {
@@ -52,7 +56,7 @@ export default function CreateFieldPage() {
 
   const onSubmit = async (data: CreateFieldInput) => {
     setIsSubmitting(true);
-    setDisplayError(null);
+    clearError();
 
     try {
       const payload = {
@@ -72,11 +76,9 @@ export default function CreateFieldPage() {
       reset();
       setTimeout(() => {
         router.push('/fields');
-      }, 1500);
+      }, 2000);
     } catch (err: any) {
-      setDisplayError(
-        err.response?.data?.detail || 'Failed to create field. Please try again.'
-      );
+      handleError(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -84,14 +86,40 @@ export default function CreateFieldPage() {
 
   if (!mounted || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="space-y-6">
+          <div className="h-10 w-1/3 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse"></div>
+          <div className="card space-y-4">
+            {Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="h-12 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse"></div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!user || user.role !== 'admin') {
     return null;
+  }
+
+  if (displaySuccess) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="text-green-600" size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-[var(--color-text)] mb-2">Field Created Successfully!</h2>
+          <p className="text-[var(--color-text-secondary)] mb-6">
+            Your new field has been added to the system. Redirecting to fields list...
+          </p>
+          <Button variant="primary" onClick={() => router.push('/fields')}>
+            Go to Fields
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -115,21 +143,23 @@ export default function CreateFieldPage() {
       {/* Form Card */}
       <div className="card">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {displaySuccess && (
-            <Alert
-              type="success"
-              title="Success!"
-              message="Field created successfully. Redirecting..."
-              onClose={() => setDisplaySuccess(false)}
-            />
-          )}
-
           {displayError && (
             <Alert
               type="error"
-              title="Failed to create field"
-              message={displayError}
-              onClose={() => setDisplayError(null)}
+              title="Failed to Create Field"
+              message={displayError.userMessage}
+              details={displayError.details ? formatValidationErrors(displayError.details) : undefined}
+              onClose={clearError}
+              dismissible
+            />
+          )}
+
+          {Object.keys(errors).length > 0 && (
+            <Alert
+              type="warning"
+              title="Please review the errors below"
+              message="Some fields have validation errors. Please correct them and try again."
+              dismissible={false}
             />
           )}
 
@@ -177,7 +207,8 @@ export default function CreateFieldPage() {
 
           {/* Location Information */}
           <div>
-            <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
+            <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4 flex items-center gap-2">
+              <MapPin size={20} />
               Location
             </h2>
             <div className="space-y-4">
@@ -188,7 +219,7 @@ export default function CreateFieldPage() {
                 placeholder="e.g., -1.2345"
                 required
                 error={errors.location_latitude}
-                helperText="GPS coordinate"
+                helperText="GPS coordinate (decimal format)"
                 {...register('location_latitude')}
               />
 
@@ -199,34 +230,47 @@ export default function CreateFieldPage() {
                 placeholder="e.g., 36.7890"
                 required
                 error={errors.location_longitude}
-                helperText="GPS coordinate"
+                helperText="GPS coordinate (decimal format)"
                 {...register('location_longitude')}
               />
             </div>
           </div>
 
           {/* Assignment */}
-          {agents && (
+          {user.role === 'admin' && (
             <div>
               <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
-                Assignment
+                Assignment (Optional)
               </h2>
-              <FormSelect
-                label="Assign Agent"
-                options={agents.map((agent: any) => ({
-                  value: agent.id,
-                  label: `${agent.first_name} ${agent.last_name}`,
-                }))}
-                error={errors.assigned_agent}
-                {...register('assigned_agent')}
-              />
+              {agentsLoading ? (
+                <div className="p-4 bg-[var(--color-surface-secondary)] rounded text-[var(--color-text-secondary)]">
+                  Loading available agents...
+                </div>
+              ) : agents && agents.length > 0 ? (
+                <FormSelect
+                  label="Assign to Agent"
+                  options={[
+                    { value: '', label: 'No assignment' },
+                    ...agents.map((agent: any) => ({
+                      value: agent.id.toString(),
+                      label: `${agent.first_name} ${agent.last_name}`,
+                    })),
+                  ]}
+                  error={errors.assigned_agent}
+                  {...register('assigned_agent')}
+                />
+              ) : (
+                <div className="p-4 bg-[var(--color-surface-secondary)] rounded text-[var(--color-text-secondary)]">
+                  No agents available to assign
+                </div>
+              )}
             </div>
           )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-6 border-t border-[var(--color-border)]">
             <Link href="/fields" className="flex-1">
-              <Button variant="outline" size="lg" className="w-full">
+              <Button variant="outline" size="lg" fullWidth>
                 Cancel
               </Button>
             </Link>
@@ -235,7 +279,8 @@ export default function CreateFieldPage() {
               variant="primary"
               size="lg"
               isLoading={isSubmitting}
-              className="flex-1"
+              fullWidth
+              disabled={!isValid || isSubmitting}
             >
               Create Field
             </Button>

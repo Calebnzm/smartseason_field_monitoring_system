@@ -146,14 +146,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Demo Info Card */}
-        <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg border border-white border-opacity-20 backdrop-blur-sm">
-          <p className="text-white text-xs font-semibold mb-2 opacity-90">Demo Credentials:</p>
-          <div className="space-y-1 text-white text-xs opacity-80">
-            <p>Username: <span className="font-mono">admin</span></p>
-            <p>Password: <span className="font-mono">admin123</span></p>
-          </div>
-        </div>
+
       </div>
     </div>
   );
