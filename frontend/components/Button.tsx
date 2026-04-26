@@ -1,4 +1,5 @@
 import React, { ButtonHTMLAttributes, ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -9,6 +10,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
   children: ReactNode;
   icon?: ReactNode;
+  fullWidth?: boolean;
 }
 
 export function Button({
@@ -18,11 +20,14 @@ export function Button({
   children,
   icon,
   disabled,
-  className,
+  className = '',
+  fullWidth = false,
   ...props
 }: ButtonProps) {
   const baseClass = `btn btn-${variant} btn-${size}`;
-  const classes = `${baseClass} ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${className || ''}`;
+  const widthClass = fullWidth ? 'w-full' : '';
+  const disabledClass = disabled || isLoading ? 'disabled' : '';
+  const classes = `${baseClass} ${widthClass} ${disabledClass} ${className}`.trim();
 
   return (
     <button
@@ -32,13 +37,13 @@ export function Button({
     >
       {isLoading ? (
         <>
-          <span className="inline-block animate-spin mr-2">⏳</span>
-          Loading...
+          <Loader2 size={18} className="animate-spin flex-shrink-0" />
+          <span>{children}</span>
         </>
       ) : (
         <>
           {icon && <span className="flex-shrink-0">{icon}</span>}
-          {children}
+          <span>{children}</span>
         </>
       )}
     </button>

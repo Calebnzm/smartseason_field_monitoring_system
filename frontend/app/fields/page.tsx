@@ -7,22 +7,35 @@ import useSWR from 'swr';
 import { api, Field } from '@/lib/api';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
+import { SkeletonCard } from '@/components/Skeleton';
+import { useError } from '@/lib/useError';
+import { formatValidationErrors } from '@/lib/error-handler';
 import Link from 'next/link';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, RefreshCw } from 'lucide-react';
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function FieldsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const { error: displayError, handleError, clearError } = useError();
   const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
 
-  const { data: fields, error: fieldsError, isLoading: fieldsLoading } = useSWR<Field[]>(
+  const { 
+    data: fields, 
+    error: fieldsError, 
+    isLoading: fieldsLoading,
+    mutate: refetchFields 
+  } = useSWR<Field[]>(
     '/fields/',
     fetcher,
-    { revalidateOnFocus: false }
+    { 
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      dedupingInterval: 60000,
+    }
   );
 
   useEffect(() => {
@@ -35,10 +48,25 @@ export default function FieldsPage() {
     }
   }, [user, authLoading, router]);
 
+  // Handle field fetch errors
+  useEffect(() => {
+    if (fieldsError) {
+      handleError(fieldsError);
+    }
+  }, [fieldsError, handleError]);
+
   if (!mounted || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <div className="h-10 w-1/3 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse mb-4"></div>
+          <div className="h-4 w-1/2 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <SkeletonCard key={idx} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -63,7 +91,7 @@ export default function FieldsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-bold text-[var(--color-text)]">
             Fields Management
@@ -72,21 +100,35 @@ export default function FieldsPage() {
             Browse and manage all fields in your system
           </p>
         </div>
-        {user.role === 'admin' && (
-          <Link href="/fields/create">
-            <Button variant="primary" size="lg" icon={<Plus size={20} />}>
-              Create Field
-            </Button>
-          </Link>
-        )}
+        <div className="flex gap-2 w-full md:w-auto">
+          {user.role === 'admin' && (
+            <Link href="/fields/create" className="flex-1 md:flex-initial">
+              <Button variant="primary" size="lg" icon={<Plus size={20} />} fullWidth>
+                Create Field
+              </Button>
+            </Link>
+          )}
+          <Button 
+            variant="outline" 
+            size="lg" 
+            icon={<RefreshCw size={20} />}
+            onClick={() => refetchFields()}
+            disabled={fieldsLoading}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Error Alert */}
-      {fieldsError && (
+      {displayError && (
         <Alert
           type="error"
-          title="Failed to load fields"
-          message="Unable to fetch field data. Please try again."
+          title={displayError.type === 'validation' ? 'Invalid Input' : 'Failed to Load Fields'}
+          message={displayError.userMessage}
+          details={displayError.details ? formatValidationErrors(displayError.details) : undefined}
+          onClose={clearError}
+          dismissible
         />
       )}
 
@@ -135,8 +177,10 @@ export default function FieldsPage() {
 
       {/* Fields Grid */}
       {fieldsLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <SkeletonCard key={idx} />
+          ))}
         </div>
       ) : filteredFields.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -149,7 +193,7 @@ export default function FieldsPage() {
                       {field.name}
                     </h3>
                     <span
-                      className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'pending'}`}
+                      className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'unknown'}`}
                     >
                       {field.health_status.replace('_', ' ')}
                     </span>

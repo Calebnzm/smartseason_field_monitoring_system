@@ -8,14 +8,16 @@ import { FormInput } from '@/components/FormInput';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
 import { loginSchema, type LoginInput } from '@/lib/schemas';
-import { Leaf } from 'lucide-react';
+import { useError } from '@/lib/useError';
+import { formatValidationErrors } from '@/lib/error-handler';
+import { Leaf, Lock, User } from 'lucide-react';
 import { useState } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { error: apiError, handleError: setApiError, clearError } = useError();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [displayError, setDisplayError] = useState<string | null>(null);
 
   const {
     register,
@@ -27,13 +29,13 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginInput) => {
     setIsSubmitting(true);
-    setDisplayError(null);
+    clearError();
 
     try {
       await login(data.username, data.password);
       router.push('/dashboard');
     } catch (err: any) {
-      setDisplayError(err.response?.data?.detail || 'Login failed. Please try again.');
+      setApiError(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -42,7 +44,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] flex items-center justify-center p-4">
       {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10 overflow-hidden">
+      <div className="absolute inset-0 opacity-5 overflow-hidden">
         <div className="absolute top-10 left-10 w-40 h-40 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
         <div className="absolute bottom-10 right-10 w-40 h-40 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
       </div>
@@ -67,39 +69,67 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {displayError && (
+            {apiError && (
               <Alert
                 type="error"
-                title="Login Failed"
-                message={displayError}
-                onClose={() => setDisplayError(null)}
+                title={apiError.type === 'auth' ? 'Authentication Failed' : 'Login Error'}
+                message={apiError.userMessage}
+                details={apiError.details ? formatValidationErrors(apiError.details) : undefined}
+                onClose={clearError}
+                dismissible
               />
             )}
 
-            <FormInput
-              label="Username"
-              type="text"
-              placeholder="admin"
-              required
-              error={errors.username}
-              {...register('username')}
-            />
+            {/* Form validation errors */}
+            {Object.keys(errors).length > 0 && !apiError && (
+              <Alert
+                type="warning"
+                title="Please check your input"
+                message="Some fields have errors. Please review and try again."
+                dismissible={false}
+              />
+            )}
 
-            <FormInput
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              required
-              error={errors.password}
-              {...register('password')}
-            />
+            <div className="form-group">
+              <label htmlFor="username" className="form-label required">Username</label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 text-[var(--color-text-tertiary)] pointer-events-none" size={18} />
+                <input
+                  id="username"
+                  type="text"
+                  placeholder="admin"
+                  className="form-input pl-10"
+                  {...register('username')}
+                />
+              </div>
+              {errors.username && (
+                <span className="form-error">{errors.username.message}</span>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password" className="form-label required">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 text-[var(--color-text-tertiary)] pointer-events-none" size={18} />
+                <input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  className="form-input pl-10"
+                  {...register('password')}
+                />
+              </div>
+              {errors.password && (
+                <span className="form-error">{errors.password.message}</span>
+              )}
+            </div>
 
             <Button
               type="submit"
               variant="primary"
               size="lg"
               isLoading={isSubmitting}
-              className="w-full"
+              fullWidth
             >
               Sign In to Dashboard
             </Button>

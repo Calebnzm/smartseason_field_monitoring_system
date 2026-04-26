@@ -7,21 +7,34 @@ import useSWR from 'swr';
 import { api, Field } from '@/lib/api';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
+import { SkeletonCard, SkeletonTable } from '@/components/Skeleton';
+import { useError } from '@/lib/useError';
+import { formatValidationErrors } from '@/lib/error-handler';
 import Link from 'next/link';
-import { BarChart3, Leaf, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { BarChart3, Leaf, AlertTriangle, CheckCircle2, Plus, RefreshCw } from 'lucide-react';
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const { error: displayError, handleError, clearError } = useError();
   const [mounted, setMounted] = useState(false);
 
   // Fetch fields
-  const { data: fields, error: fieldsError, isLoading: fieldsLoading } = useSWR<Field[]>(
+  const { 
+    data: fields, 
+    error: fieldsError, 
+    isLoading: fieldsLoading,
+    mutate: refetchFields 
+  } = useSWR<Field[]>(
     '/fields/',
     fetcher,
-    { revalidateOnFocus: false }
+    { 
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      dedupingInterval: 60000,
+    }
   );
 
   useEffect(() => {
@@ -34,10 +47,25 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
+  // Handle field fetch errors
+  useEffect(() => {
+    if (fieldsError) {
+      handleError(fieldsError);
+    }
+  }, [fieldsError, handleError]);
+
   if (!mounted || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          <div className="h-10 w-1/3 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <SkeletonCard key={idx} />
+            ))}
+          </div>
+          <SkeletonCard />
+        </div>
       </div>
     );
   }
@@ -82,7 +110,7 @@ export default function DashboardPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-bold text-[var(--color-text)]">
             Welcome back, {user.first_name}
@@ -91,46 +119,66 @@ export default function DashboardPage() {
             Here&apos;s an overview of your field monitoring system
           </p>
         </div>
-        {user.role === 'admin' && (
-          <Link href="/fields/create">
-            <Button variant="primary" size="lg" icon={<Plus size={20} />}>
-              Create Field
-            </Button>
-          </Link>
-        )}
+        <div className="flex gap-2 w-full md:w-auto">
+          {user.role === 'admin' && (
+            <Link href="/fields/create" className="flex-1 md:flex-initial">
+              <Button variant="primary" size="lg" icon={<Plus size={20} />} fullWidth>
+                Create Field
+              </Button>
+            </Link>
+          )}
+          <Button 
+            variant="outline" 
+            size="lg" 
+            icon={<RefreshCw size={20} />}
+            onClick={() => refetchFields()}
+            disabled={fieldsLoading}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Error Alert */}
-      {fieldsError && (
+      {displayError && (
         <Alert
           type="error"
-          title="Failed to load fields"
-          message="Unable to fetch field data. Please try again."
+          title={displayError.type === 'validation' ? 'Invalid Input' : 'Failed to Load Fields'}
+          message={displayError.userMessage}
+          details={displayError.details ? formatValidationErrors(displayError.details) : undefined}
+          onClose={clearError}
+          dismissible
         />
       )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="card hover:shadow-lg transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[var(--color-text-secondary)] text-sm font-medium">
-                    {stat.label}
-                  </p>
-                  <p className="text-4xl font-bold text-[var(--color-text)] mt-2">
-                    {stat.value}
-                  </p>
-                </div>
-                <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg`}>
-                  <Icon className="text-white" size={28} />
+        {fieldsLoading ? (
+          Array.from({ length: 4 }).map((_, idx) => (
+            <SkeletonCard key={idx} />
+          ))
+        ) : (
+          stats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.label} className="card-hover">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[var(--color-text-secondary)] text-sm font-medium">
+                      {stat.label}
+                    </p>
+                    <p className="text-4xl font-bold text-[var(--color-text)] mt-2">
+                      {stat.value}
+                    </p>
+                  </div>
+                  <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg`}>
+                    <Icon className="text-white" size={28} />
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Fields Section */}
@@ -149,9 +197,7 @@ export default function DashboardPage() {
         </div>
 
         {fieldsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div>
-          </div>
+          <SkeletonTable rows={5} columns={6} />
         ) : fields && fields.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="table">
@@ -176,7 +222,7 @@ export default function DashboardPage() {
                     </td>
                     <td>
                       <span
-                        className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'pending'}`}
+                        className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'unknown'}`}
                       >
                         {field.health_status.replace('_', ' ')}
                       </span>
