@@ -7,8 +7,11 @@ import useSWR from 'swr';
 import { api, Field, FieldUpdate } from '@/lib/api';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
+import { SkeletonCard, SkeletonLine } from '@/components/Skeleton';
+import { useError } from '@/lib/useError';
+import { formatValidationErrors } from '@/lib/error-handler';
 import Link from 'next/link';
-import { ArrowLeft, MapPin, Leaf, User, Zap, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Leaf, User, Zap, Edit, Trash2, RefreshCw } from 'lucide-react';
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
@@ -16,20 +19,34 @@ export default function FieldDetailPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const { error: displayError, handleError, clearError } = useError();
   const [mounted, setMounted] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fieldId = (params?.id || '') as string;
 
-  const { data: field, error: fieldError, isLoading: fieldLoading } = useSWR<Field>(
+  const { 
+    data: field, 
+    error: fieldError, 
+    isLoading: fieldLoading,
+    mutate: refetchField 
+  } = useSWR<Field>(
     fieldId ? `/fields/${fieldId}/` : null,
-    fetcher
+    fetcher,
+    { revalidateOnReconnect: true }
   );
 
-  const { data: updates, error: updatesError, isLoading: updatesLoading } = useSWR<FieldUpdate[]>(
+  const { 
+    data: updates, 
+    error: updatesError, 
+    isLoading: updatesLoading,
+    mutate: refetchUpdates 
+  } = useSWR<FieldUpdate[]>(
     fieldId ? `/fields/${fieldId}/updates/` : null,
-    fetcher
+    fetcher,
+    { revalidateOnReconnect: true }
   );
 
   useEffect(() => {
@@ -42,14 +59,30 @@ export default function FieldDetailPage() {
     }
   }, [user, authLoading, router]);
 
+  // Handle errors
+  useEffect(() => {
+    if (fieldError) {
+      handleError(fieldError);
+    }
+  }, [fieldError, handleError]);
+
+  useEffect(() => {
+    if (updatesError) {
+      handleError(updatesError);
+    }
+  }, [updatesError, handleError]);
+
   const handleDelete = async () => {
     if (!fieldId) return;
 
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       await api.delete(`/fields/${fieldId}/`);
       router.push('/fields');
-    } catch (err) {
+    } catch (err: any) {
+      const errorInfo = handleError(err);
+      setDeleteError(errorInfo?.userMessage || 'Failed to delete field');
       setDeleteConfirm(false);
     } finally {
       setIsDeleting(false);
@@ -67,8 +100,16 @@ export default function FieldDetailPage() {
 
   if (!mounted || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          <div className="h-10 w-1/3 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Array.from({ length: 2 }).map((_, idx) => (
+              <SkeletonCard key={idx} />
+            ))}
+          </div>
+          <SkeletonCard />
+        </div>
       </div>
     );
   }
@@ -79,20 +120,33 @@ export default function FieldDetailPage() {
 
   if (fieldLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          <div className="h-10 w-1/3 bg-gradient-to-r from-var(--color-surface-secondary) via-var(--color-surface-tertiary) to-var(--color-surface-secondary) rounded animate-pulse"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Array.from({ length: 2 }).map((_, idx) => (
+              <SkeletonCard key={idx} />
+            ))}
+          </div>
+          <SkeletonCard />
+        </div>
       </div>
     );
   }
 
-  if (fieldError || !field) {
+  if (!field) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Link href="/fields" className="flex items-center gap-2 text-[var(--color-primary)] hover:text-[var(--color-primary-dark)] mb-6">
           <ArrowLeft size={18} />
           Back to Fields
         </Link>
-        <Alert type="error" title="Field not found" message="The field you are looking for does not exist or you don't have access to it." />
+        <Alert 
+          type="error" 
+          title="Field not found" 
+          message="The field you are looking for does not exist or you don't have access to it."
+          dismissible={false}
+        />
       </div>
     );
   }
@@ -107,8 +161,30 @@ export default function FieldDetailPage() {
         Back to Fields
       </Link>
 
+      {/* Error Alerts */}
+      {displayError && (
+        <Alert 
+          type="error"
+          title={displayError.type === 'validation' ? 'Invalid Input' : 'Error Loading Field'}
+          message={displayError.userMessage}
+          details={displayError.details ? formatValidationErrors(displayError.details) : undefined}
+          onClose={clearError}
+          dismissible
+        />
+      )}
+
+      {deleteError && (
+        <Alert 
+          type="error"
+          title="Delete Failed"
+          message={deleteError}
+          onClose={() => setDeleteError(null)}
+          dismissible
+        />
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-bold text-[var(--color-text)]">
             {field.name}
@@ -119,12 +195,24 @@ export default function FieldDetailPage() {
         </div>
 
         {user.role === 'admin' && (
-          <div className="flex gap-2">
-            <Link href={`/fields/${field.id}/edit`}>
-              <Button variant="outline" size="lg" icon={<Edit size={20} />}>
+          <div className="flex gap-2 w-full md:w-auto">
+            <Link href={`/fields/${field.id}/edit`} className="flex-1 md:flex-initial">
+              <Button variant="outline" size="lg" icon={<Edit size={20} />} fullWidth>
                 Edit
               </Button>
             </Link>
+            <Button 
+              variant="outline"
+              size="lg"
+              icon={<RefreshCw size={20} />}
+              onClick={() => {
+                refetchField();
+                refetchUpdates();
+              }}
+              disabled={fieldLoading || updatesLoading}
+            >
+              Refresh
+            </Button>
             {deleteConfirm ? (
               <Button
                 variant="danger"
@@ -157,7 +245,7 @@ export default function FieldDetailPage() {
             </p>
             <div className="flex items-center gap-2">
               <span
-                className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'pending'}`}
+                className={`badge badge-${field.health_status === 'active' ? 'active' : field.health_status === 'at_risk' ? 'at-risk' : field.health_status === 'completed' ? 'completed' : 'unknown'}`}
               >
                 {field.health_status.replace('_', ' ').toUpperCase()}
               </span>
@@ -252,11 +340,11 @@ export default function FieldDetailPage() {
         </h2>
 
         {updatesLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]"></div>
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <SkeletonLine key={idx} count={2} />
+            ))}
           </div>
-        ) : updatesError ? (
-          <Alert type="error" message="Failed to load field updates" />
         ) : updates && updates.length > 0 ? (
           <div className="space-y-4">
             {updates.map((update, index) => (
