@@ -4,7 +4,7 @@ import { parseError, ErrorInfo } from './error-handler';
 export interface UseErrorReturn {
   error: ErrorInfo | null;
   setError: (error: ErrorInfo | null) => void;
-  handleError: (err: any) => void;
+  handleError: (err: any) => ErrorInfo;
   clearError: () => void;
   isError: boolean;
 }
@@ -18,6 +18,7 @@ export function useError(): UseErrorReturn {
   const handleError = useCallback((err: any) => {
     const parsedError = parseError(err);
     setError(parsedError);
+    return parsedError;
   }, []);
 
   const clearError = useCallback(() => {
