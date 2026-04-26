@@ -8,9 +8,12 @@ certifi==2023.11.17
     # via requests
 charset-normalizer==3.4.7
     # via requests
+dj-database-url==3.1.2
+    # via server (pyproject.toml)
 django==6.0.4
     # via
     #   server (pyproject.toml)
+    #   dj-database-url
     #   django-cors-headers
     #   djangorestframework
     #   djangorestframework-simplejwt
@@ -28,6 +31,8 @@ idna==3.6
     # via requests
 packaging==24.0
     # via gunicorn
+psycopg2-binary==2.9.12
+    # via server (pyproject.toml)
 pyjwt==2.7.0
     # via djangorestframework-simplejwt
 requests==2.33.1
