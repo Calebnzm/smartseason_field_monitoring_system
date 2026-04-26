@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const verifyToken = async () => {
     try {
-      const res = await api.get('/auth/user/');
+      const res = await api.get('/users/me/');
       setUser(res.data);
       setError(null);
     } catch (err) {
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.post('/invitations/accept/', {
+      const res = await api.post('/auth/complete-invite/', {
         token,
         username,
         password,
